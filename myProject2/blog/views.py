@@ -8,3 +8,10 @@ def post_details (request, post_id):
 
 def user_profile(request, username):
     return HttpResponse(f"<h1>Profile of User: {username}</h1>")
+ 
+def article_by_year(request, year):
+    return HttpResponse(f"<h1>Articles from the year: {year}</h1>")
+
+def article_details(request, **kwargs):
+    # return HttpResponse(f"<h1>Article Details for {kwargs.get('year')}-{kwargs.get('month')}-{kwargs.get('day')}</h1>")
+    return HttpResponse(f"<h1>Article Details for {kwargs}</h1>")
