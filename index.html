@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Browser PostgreSQL Blog</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 40px 20px;
+            font-family: Arial, sans-serif;
+            background: #f4f5f7;
+            color: #222;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+        }
+
+        .description {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 25px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-size: 15px;
+            cursor: pointer;
+            background: #111;
+            color: #fff;
+        }
+
+        button:hover {
+            opacity: 0.85;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-bottom: 20px;
+            padding: 12px 15px;
+            background: #fff;
+            border-radius: 8px;
+        }
+
+        #blogList {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .blog-item {
+            background: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .blog-id {
+            font-size: 13px;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+        .blog-title {
+            margin: 0 0 10px;
+            font-size: 21px;
+        }
+
+        .blog-body {
+            margin: 0;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .error {
+            color: #c62828;
+        }
+
+        .success {
+            color: #177245;
+        }
+
+        .sql {
+            margin-top: 35px;
+            background: #1f1f1f;
+            color: #eee;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            font-family: monospace;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Blog Database</h1>
+
+    <p class="description">
+        PostgreSQL running directly inside your browser with PGlite.
+    </p>
+
+
+    <div class="actions">
+
+        <button id="fetchButton" disabled>
+            Fetch Blogs
+        </button>
+
+        <button id="addButton" disabled>
+            Add Demo Blog
+        </button>
+
+    </div>
+
+
+    <div id="status">
+        Starting PostgreSQL...
+    </div>
+
+
+    <ul id="blogList"></ul>
+
+
+    <div class="sql">
+        SELECT id, title, body
+        FROM blogs
+        ORDER BY id DESC;
+    </div>
+
+</div>
+
+
+<script type="module">
+
+    import {
+        PGlite
+    } from "https://cdn.jsdelivr.net/npm/@electric-sql/pglite/dist/index.js";
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | DOM
+    |--------------------------------------------------------------------------
+    */
+
+    const fetchButton =
+        document.getElementById("fetchButton");
+
+    const addButton =
+        document.getElementById("addButton");
+
+    const status =
+        document.getElementById("status");
+
+    const blogList =
+        document.getElementById("blogList");
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PostgreSQL
+    |--------------------------------------------------------------------------
+    |
+    | idb:// means the PostgreSQL database will be stored
+    | inside browser IndexedDB.
+    |
+    */
+
+    const db = await PGlite.create(
+        "idb://blog-db"
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Create Blogs Table
+    |--------------------------------------------------------------------------
+    */
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS blogs (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL
+        );
+    `);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Check Existing Data
+    |--------------------------------------------------------------------------
+    */
+
+    const countResult = await db.query(`
+        SELECT COUNT(*)::int AS total
+        FROM blogs;
+    `);
+
+
+    const total =
+        countResult.rows[0].total;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Seed Data
+    |--------------------------------------------------------------------------
+    |
+    | Only insert demo records when table is empty.
+    |
+    */
+
+    if (total === 0) {
+
+        await db.query(`
+            INSERT INTO blogs (title, body)
+            VALUES
+            (
+                $1,
+                $2
+            ),
+            (
+                $3,
+                $4
+            ),
+            (
+                $5,
+                $6
+            );
+        `, [
+            "My First Blog",
+            "This blog is stored inside PostgreSQL running in the browser.",
+
+            "Learning PGlite",
+            "PGlite allows PostgreSQL-compatible SQL to run using WebAssembly.",
+
+            "No Backend",
+            "This example does not use Laravel, FastAPI, Django or Node.js."
+        ]);
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Database Ready
+    |--------------------------------------------------------------------------
+    */
+
+    status.innerHTML =
+        `<span class="success">
+            PostgreSQL database ready.
+        </span>`;
+
+    fetchButton.disabled = false;
+    addButton.disabled = false;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fetch Blogs
+    |--------------------------------------------------------------------------
+    */
+
+    async function fetchBlogs() {
+
+        fetchButton.disabled = true;
+
+        status.textContent =
+            "Fetching blogs from PostgreSQL...";
+
+        blogList.innerHTML = "";
+
+
+        try {
+
+            /*
+            |--------------------------------------
+            | Real SQL Query
+            |--------------------------------------
+            */
+
+            const result = await db.query(`
+                SELECT
+                    id,
+                    title,
+                    body
+                FROM blogs
+                ORDER BY id DESC;
+            `);
+
+
+            const blogs =
+                result.rows;
+
+
+            /*
+            |--------------------------------------
+            | Render HTML
+            |--------------------------------------
+            */
+
+            if (blogs.length === 0) {
+
+                status.textContent =
+                    "No blogs found.";
+
+                return;
+            }
+
+
+            blogs.forEach(blog => {
+
+                const li =
+                    document.createElement("li");
+
+                li.className =
+                    "blog-item";
+
+
+                const id =
+                    document.createElement("div");
+
+                id.className =
+                    "blog-id";
+
+                id.textContent =
+                    `Blog ID: ${blog.id}`;
+
+
+                const title =
+                    document.createElement("h2");
+
+                title.className =
+                    "blog-title";
+
+                title.textContent =
+                    blog.title;
+
+
+                const body =
+                    document.createElement("p");
+
+                body.className =
+                    "blog-body";
+
+                body.textContent =
+                    blog.body;
+
+
+                li.appendChild(id);
+
+                li.appendChild(title);
+
+                li.appendChild(body);
+
+
+                blogList.appendChild(li);
+
+            });
+
+
+            status.innerHTML =
+                `<span class="success">
+                    Found ${blogs.length} blog(s).
+                </span>`;
+
+
+            console.log(
+                "PostgreSQL result:",
+                result
+            );
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            status.innerHTML =
+                `<span class="error">
+                    ${error.message}
+                </span>`;
+
+        } finally {
+
+            fetchButton.disabled = false;
+
+        }
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Insert Blog
+    |--------------------------------------------------------------------------
+    */
+
+    async function addDemoBlog() {
+
+        addButton.disabled = true;
+
+        try {
+
+            const number =
+                Date.now();
+
+
+            await db.query(`
+                INSERT INTO blogs (
+                    title,
+                    body
+                )
+                VALUES (
+                    $1,
+                    $2
+                );
+            `, [
+                `Demo Blog ${number}`,
+
+                "This blog was inserted directly into the browser PostgreSQL database."
+            ]);
+
+
+            status.innerHTML =
+                `<span class="success">
+                    Blog inserted successfully.
+                </span>`;
+
+
+            await fetchBlogs();
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            status.innerHTML =
+                `<span class="error">
+                    ${error.message}
+                </span>`;
+
+        } finally {
+
+            addButton.disabled = false;
+
+        }
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Button Events
+    |--------------------------------------------------------------------------
+    */
+
+    fetchButton.addEventListener(
+        "click",
+        fetchBlogs
+    );
+
+
+    addButton.addEventListener(
+        "click",
+        addDemoBlog
+    );
+
+</script>
+
+</body>
+</html>
